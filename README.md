@@ -176,7 +176,6 @@ The observed behavior is that an authenticated SSH session was able to tunnel a 
 
 2. Review the enumerated plugin/theme/core versions and cross-reference them against known CVEs or end-of-life status.
 
-   > **[Fill in before publishing]** Plugin/theme/core versions identified: `_____`. Matching CVE ID(s) or WPScan vulnerability-database entries: `_____`. Without this evidence, treat the "outdated component" claim below as unverified.
 
 3. Open the site and click on "Hello world!".
 

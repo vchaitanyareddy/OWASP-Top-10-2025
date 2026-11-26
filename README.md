@@ -38,68 +38,50 @@ Hands-on practical demonstrations of OWASP Top 10 web application vulnerabilitie
 
 ## A1 — Broken Access Control
 
-Broken Access Control is an OWASP web application vulnerability where an application does not properly restrict what an authenticated or unauthenticated user is allowed to access or perform.
+Broken Access Control occurs when an application does not properly enforce what an authenticated or unauthenticated user is allowed to access or perform. In this lab, the DVWA File Inclusion functionality was tested to determine whether a user could access local files through a user-controlled parameter.
 
-**Lab setup:** Target = DVWA (`http://<TARGET_IP>/dvwa`), Attacker = Kali Linux
+Lab setup: Target = DVWA (`http://<TARGET_IP>/dvwa`), Attacker = Kali Linux
 
-> **Classification note:** The evidence gathered in this lab is a Remote File Inclusion (RFI), which is primarily an **Injection (A05)** issue — the application fails to validate/sanitize a user-supplied file path, allowing an attacker-controlled remote resource to be loaded. No separate test was performed to confirm an access-control failure (e.g., checking whether the include parameter was reachable by an unauthenticated or lower-privilege account independent of this payload); that would require its own verification step. Until that's done, this finding should be labeled **A05 (Injection)**, with a possible contributing A01 weakness noted as unverified rather than demonstrated.
+> **Classification note:** This practical demonstrates Local File Inclusion (LFI) and the resulting ability to read `/etc/passwd` through the application. It is relevant to A01 when that file access is outside the user's intended permissions and the application fails to enforce the required access-control boundary. The screenshots establish local-file disclosure in the DVWA lab; they do not independently compare unauthenticated, low-privilege, and privileged users. Do not claim a role-based authorization bypass unless that additional test has been performed. Apache log poisoning is a chained impact that demonstrates server-side code execution; it should not be described as proof that every LFI is inherently an A01 issue.
 
-### Procedure — Remote File Inclusion (RFI)
+### Procedure — Local File Inclusion (LFI) and Apache Log Poisoning
 
-Remote File Inclusion is a web application vulnerability where an application allows an attacker to include a file hosted on a remote server.
+Local File Inclusion is a vulnerability in which an application uses a user-controlled value to include or retrieve a local file from the server. In this practical, the DVWA File Inclusion module was used to access a local system file. The lab then demonstrated how Apache access-log poisoning could be chained with the vulnerable inclusion functionality.
 
-1. Create a file named `sample.php` using Mousepad:
+1. Open the DVWA application in the isolated lab environment and navigate to the File Inclusion module.
 
-   ```bash
-   mousepad sample.php
-   ```
+2. Test whether the application allows access to a local file by supplying `/etc/passwd` through the vulnerable page parameter.
 
-2. Insert the lab script into `sample.php` and save it.
+   ![DVWA local file inclusion evidence](Screenshots/A1-01-LFI-File-Read.png)
 
-   > The original lab payload (a reverse-shell PHP script) has been redacted here. Use only within an isolated, authorized lab.
+3. Send a controlled request to the DVWA server with test input in the User-Agent header. Apache records request headers in its access log.
 
-3. Start a Python HTTP server to host the file:
+   ![Apache access-log request evidence](Screenshots/A1-02-Apache-Log-Request.png)
 
-   ```bash
-   sudo python3 -m http.server 80
-   ```
+4. Use the vulnerable File Inclusion functionality to include the Apache access log and observe the returned log contents.
 
-4. Log in to DVWA using lab credentials (redacted).
+   ![Poisoned Apache log inclusion evidence](Screenshots/A1-03-Poisoned-Log-Inclusion.png)
 
-5. Move the file to the web root and rename it so it's served as plain text rather than executed locally by Kali's own server:
+5. Review the lab verification evidence. The practical recorded the target hostname and the web-server execution account (`www-data`), demonstrating the impact of the chained log-poisoning and file-inclusion weaknesses.
 
-   ```bash
-   sudo mv sample.php /var/www/html/
-   cd /var/www/html/
-   sudo mv sample.php sample.txt
-   sudo service apache2 start
-   ```
-
-   Renaming `sample.php` to `sample.txt` ensures Kali's web server serves the payload as plain text instead of executing it locally — the vulnerable DVWA server then fetches and includes its contents.
-
-6. Start a Netcat listener on the attacker machine:
-
-   ```bash
-   nc -lvp 1212
-   ```
-
-7. In the DVWA File Inclusion module, provide the URL of the remotely hosted file.
-
-   ![image](Screenshots/img-01.jpeg)
-
-8. Check the Netcat listener to verify whether the connection was received.
-
-   ![image](Screenshots/img-02.jpeg)
+   ![Lab command-execution evidence](Screenshots/A1-04-Command-Execution-Proof.png)
 
 ### Conclusion
 
-Demonstrated a Remote File Inclusion (RFI) vulnerability in DVWA, where unsanitized input to a file-include parameter allowed a remote, attacker-hosted file to be loaded and executed, resulting in remote command execution.
+The DVWA practical demonstrated that the File Inclusion functionality allowed local file disclosure by returning the contents of `/etc/passwd`. The exercise also demonstrated a chained impact in which controlled content written to the Apache access log was later processed through the vulnerable inclusion functionality, resulting in command execution under the `www-data` account.
+
+The A01 classification should be tied to the unauthorized file-access condition. The log-poisoning/code-execution chain is a separate impact of combining the weaknesses and should be clearly identified as such.
 
 ### Remediation
 
-- Never pass user input directly into file-include functions; use a server-side allow-list of permitted file identifiers mapped internally to safe paths.
-- Disable `allow_url_include` / `allow_url_fopen` in PHP configuration unless explicitly required.
-- Enforce authentication and authorization checks on every code path that reaches include/require logic, not just on the main entry point.
+- Do not pass user-controlled input directly to file inclusion functions.
+- Use a strict server-side allowlist of permitted page identifiers mapped to fixed file paths.
+- Normalize and validate file paths, and ensure resolved paths remain within the intended application directory.
+- Enforce authorization checks before allowing access to files or sensitive application resources.
+- Keep log files outside locations reachable through application file-inclusion functionality.
+- Ensure log contents are never interpreted as executable code.
+- Run the web application with least privilege and restrict the web-server account's filesystem permissions.
+- Add security tests for unauthorized file access, path traversal, and unexpected file inclusion.
 
 ---
 
